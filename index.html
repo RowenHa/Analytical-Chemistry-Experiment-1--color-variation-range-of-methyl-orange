@@ -1,0 +1,1595 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>图片上传中心</title>
+  <style>
+    :root {
+      --paper: #f4f2ea;
+      --paper-dark: #ebe5d6;
+      --ink: #1f2933;
+      --muted: #52606d;
+      --line: rgba(31, 41, 51, 0.18);
+      --teal: #0f766e;
+      --teal-soft: #d6f2ef;
+      --orange: #ea580c;
+      --orange-soft: #ffe5d6;
+      --ok: #15803d;
+      --ok-soft: #dcfce7;
+      --err: #b91c1c;
+      --err-soft: #fee2e2;
+      --shadow: 0 18px 45px rgba(33, 33, 27, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 10%, rgba(15, 118, 110, 0.2), transparent 32%),
+        radial-gradient(circle at 90% 15%, rgba(234, 88, 12, 0.2), transparent 34%),
+        linear-gradient(145deg, var(--paper), var(--paper-dark));
+      padding: clamp(16px, 3vw, 32px);
+    }
+
+      .page {
+        width: min(1040px, 100%);
+        margin: 0 auto;
+        display: grid;
+        gap: 14px;
+        animation: rise 520ms ease-out;
+      }
+
+      .top-nav {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 10px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.65);
+        backdrop-filter: blur(5px);
+        box-shadow: var(--shadow);
+      }
+
+      .nav-btn {
+        appearance: none;
+        border: 1px solid var(--line);
+        background: #fff;
+        color: #334155;
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 150ms ease, background-color 150ms ease, color 150ms ease;
+      }
+
+      .nav-btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .nav-btn.is-active {
+        background: var(--teal);
+        border-color: var(--teal);
+        color: #fff;
+      }
+
+      .tab-panel {
+        display: none;
+      }
+
+      .tab-panel.is-active {
+        display: block;
+      }
+
+    .layout {
+      width: min(980px, 100%);
+      margin: 0 auto;
+      display: grid;
+      gap: 18px;
+      grid-template-columns: 1.15fr 1fr;
+    }
+
+    .hero,
+      .panel,
+      .single-card {
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(5px);
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: clamp(24px, 4vw, 34px);
+      display: grid;
+      align-content: start;
+      gap: 16px;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(1.8rem, 2.8vw, 2.6rem);
+      line-height: 1.15;
+      letter-spacing: 0.2px;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 1.02rem;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 6px 10px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--teal);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.18);
+    }
+
+    .panel {
+      padding: clamp(18px, 3vw, 24px);
+      display: grid;
+      gap: 12px;
+    }
+
+    .single-card {
+      padding: clamp(18px, 3vw, 24px);
+      display: grid;
+      gap: 12px;
+      width: min(980px, 100%);
+      margin: 0 auto;
+    }
+
+    .panel h2 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+
+    .single-card h2 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+
+    .panel .note {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 0.94rem;
+    }
+
+    .single-card .note {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 0.94rem;
+    }
+
+    .dropzone {
+      border: 2px dashed rgba(15, 118, 110, 0.38);
+      border-radius: 16px;
+      min-height: 180px;
+      padding: 18px;
+      display: grid;
+      place-content: center;
+      gap: 6px;
+      background: linear-gradient(165deg, #fcfffe, var(--teal-soft));
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+    }
+
+    .dropzone:hover {
+      border-color: var(--teal);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(15, 118, 110, 0.16);
+    }
+
+    .dropzone.dragover {
+      border-color: var(--orange);
+      background: linear-gradient(165deg, #fffaf7, var(--orange-soft));
+      box-shadow: 0 10px 24px rgba(234, 88, 12, 0.18);
+    }
+
+    .dropzone .title {
+      font-size: 1.02rem;
+      font-weight: 700;
+    }
+
+    .dropzone .sub {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .field-row {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field-row label {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    .field-row input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--ink);
+      padding: 10px 12px;
+      font-size: 0.95rem;
+    }
+
+    .field-row select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--ink);
+      padding: 10px 12px;
+      font-size: 0.95rem;
+    }
+
+    .field-row input:focus,
+    .field-row select:focus {
+      outline: 2px solid rgba(15, 118, 110, 0.24);
+      outline-offset: 1px;
+      border-color: var(--teal);
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 150ms ease, opacity 150ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.65;
+      transform: none;
+    }
+
+    .btn-primary {
+      background: var(--teal);
+      color: #fff;
+    }
+
+    .btn-ghost {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    .btn-danger {
+      background: #b91c1c;
+      color: #fff;
+    }
+
+    .meta,
+    .status,
+    .result {
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.92rem;
+    }
+
+    .meta {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: #334155;
+    }
+
+    .status {
+      border: 1px solid rgba(15, 118, 110, 0.35);
+      background: rgba(15, 118, 110, 0.1);
+      color: #0f766e;
+      min-height: 42px;
+      display: grid;
+      align-content: center;
+    }
+
+    .status[data-type="error"] {
+      border-color: rgba(185, 28, 28, 0.32);
+      background: var(--err-soft);
+      color: var(--err);
+    }
+
+    .status[data-type="ok"] {
+      border-color: rgba(21, 128, 61, 0.32);
+      background: var(--ok-soft);
+      color: var(--ok);
+    }
+
+    .result {
+      border: 1px solid rgba(15, 118, 110, 0.32);
+      background: #fff;
+      display: grid;
+      gap: 8px;
+    }
+
+    .result img {
+      width: 100%;
+      max-height: 260px;
+      object-fit: contain;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .result a {
+      color: var(--teal);
+      font-weight: 700;
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    .result a:hover {
+      text-decoration: underline;
+    }
+
+    .training-content {
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      min-height: 300px;
+      max-height: 60vh;
+      overflow: auto;
+      background: #fff;
+      color: #0f172a;
+      font-family: "Consolas", "Menlo", "Monaco", monospace;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .restricted-box {
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 16px;
+      color: #334155;
+      min-height: 120px;
+      display: grid;
+      align-content: start;
+      gap: 10px;
+    }
+
+    .advanced-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      color: #1f2933;
+      user-select: none;
+    }
+
+    .advanced-panel {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fcfffe;
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .log-block {
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #f8fafc;
+      color: #0f172a;
+      font-family: "Consolas", "Menlo", "Monaco", monospace;
+      font-size: 0.86rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      padding: 12px;
+      max-height: 240px;
+      overflow: auto;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav class="top-nav" aria-label="主导航">
+      <button type="button" class="nav-btn is-active" data-tab-target="uploadTab">添加训练数据</button>
+      <button type="button" class="nav-btn" data-tab-target="trainingTab">查阅训练数据</button>
+      <button type="button" class="nav-btn" data-tab-target="secureTab">训练模型</button>
+      <button type="button" class="nav-btn" data-tab-target="predictTab">预测pH</button>
+      <button type="button" class="nav-btn" data-tab-target="cleanupTab">训练数据管理</button>
+    </nav>
+
+    <section class="tab-panel is-active" id="uploadTab">
+      <main class="layout">
+        <section class="hero">
+          <h1>为训练集添加一条数据</h1>
+          <p>支持上传 JPG、PNG、HEIC、HEIF、WEBP 格式图片，单张文件大小不超过 5MB。上传后可直接预览与复制链接。</p>
+          <div class="tag-row">
+            <span class="tag"><span class="dot" aria-hidden="true"></span>服务运行中</span>
+            <span class="tag">训练文件: training_data.dat</span>
+            <span class="tag">限制: 5MB / 文件</span>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>上传图片</h2>
+          <p class="note">可以点击上传区域选取文件，也可以直接拖拽图片到上传区；上传前请填写 pH 值与密码。</p>
+
+          <form id="uploadForm" novalidate>
+            <input
+              id="fileInput"
+              name="image"
+              type="file"
+              hidden
+              accept=".jpg,.jpeg,.png,.heic,.heif,.webp,image/jpeg,image/png,image/heic,image/heif,image/webp"
+            />
+            <label class="dropzone" id="dropzone" for="fileInput">
+              <span class="title">点击或拖拽图片到这里</span>
+              <span class="sub">格式: JPG / PNG / HEIC / HEIF / WEBP</span>
+              <span class="sub">大小: 单张不超过 5MB</span>
+            </label>
+
+            <div class="field-row">
+              <label for="phInput">pH 值 (0-14)</label>
+              <input
+                id="phInput"
+                name="ph"
+                type="number"
+                min="0"
+                max="14"
+                step="0.01"
+                inputmode="decimal"
+                placeholder="例如 7.00"
+                required
+              />
+            </div>
+
+            <div class="field-row">
+              <label for="uploadPasswordInput">训练集上传密码</label>
+              <input
+                id="uploadPasswordInput"
+                name="password"
+                type="password"
+                placeholder="请输入密码"
+                required
+              />
+            </div>
+
+            <div class="actions">
+              <button id="submitBtn" class="btn-primary" type="submit">开始上传</button>
+              <button id="resetBtn" class="btn-ghost" type="button">重置</button>
+            </div>
+          </form>
+
+          <div class="meta" id="meta">未选择文件</div>
+          <div class="status" id="status" data-type="info" role="status" aria-live="polite">请选择图片后上传</div>
+
+          <div class="result hidden" id="result">
+            <strong>上传成功</strong>
+            <a id="resultLink" href="#" target="_blank" rel="noopener noreferrer"></a>
+            <img id="preview" alt="上传预览" />
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <section class="tab-panel" id="trainingTab">
+      <section class="single-card">
+        <h2>training_data.dat</h2>
+        <p class="note">系统时间每分钟第 10 秒、30 秒、50 秒自动刷新一次；也可以手动刷新。</p>
+        <div class="status" id="trainingStatus" data-type="info" role="status" aria-live="polite">等待刷新</div>
+        <div class="meta" id="trainingMeta">上次刷新: 暂无</div>
+        <pre class="training-content" id="trainingContent">(暂无数据)</pre>
+        <div class="actions">
+          <button id="manualRefreshBtn" class="btn-primary" type="button">立即刷新</button>
+        </div>
+      </section>
+    </section>
+
+    <section class="tab-panel" id="secureTab">
+      <section class="single-card">
+        <h2>受限区域</h2>
+        <p class="note">请输入密码并由服务端验证，验证通过后可进入该区域。</p>
+
+        <form id="authForm" novalidate>
+          <div class="field-row">
+            <label for="passwordInput">访问密码</label>
+            <input id="passwordInput" type="password" placeholder="请输入访问密码" required />
+          </div>
+          <div class="actions">
+            <button id="verifyBtn" class="btn-primary" type="submit">验证密码</button>
+          </div>
+        </form>
+
+        <div class="status" id="authStatus" data-type="info" role="status" aria-live="polite">尚未验证</div>
+        <div class="restricted-box hidden" id="restrictedBox">
+          <div>验证通过。可在此触发模型训练。</div>
+          <div class="actions">
+            <button id="trainBtn" class="btn-primary" type="button">开始训练</button>
+          </div>
+          <div class="status" id="trainStatus" data-type="info" role="status" aria-live="polite">尚未训练</div>
+          <div class="meta" id="trainMeta">上次训练: 暂无</div>
+
+          <label class="advanced-wrap" for="advancedToggle">
+            <input id="advancedToggle" type="checkbox" />
+            <span>高级选项</span>
+          </label>
+
+          <div class="advanced-panel hidden" id="advancedPanel">
+            <label class="advanced-wrap" for="disableAutoTuneToggle">
+              <input id="disableAutoTuneToggle" type="checkbox" />
+              <span>关闭 auto-tune</span>
+            </label>
+
+            <div class="field-row hidden" id="manualParamsPanel">
+              <label for="cInput">C</label>
+              <input id="cInput" type="number" min="0" step="0.01" value="10" />
+              <label for="epsilonInput">epsilon</label>
+              <input id="epsilonInput" type="number" min="0" step="0.001" value="0.05" />
+              <label for="gammaInput">gamma (scale/auto/数字)</label>
+              <input id="gammaInput" type="text" value="scale" />
+            </div>
+          </div>
+
+          <pre class="log-block hidden" id="trainOutput"></pre>
+        </div>
+      </section>
+    </section>
+
+    <section class="tab-panel" id="predictTab">
+      <section class="single-card">
+        <h2>pH 预测</h2>
+        <p class="note">上传待测图片到缓冲区，先由 comp_vision 提取 HSV，再调用 use.py 预测 pH。</p>
+
+        <form id="predictForm" novalidate>
+          <input
+            id="predictFileInput"
+            name="image"
+            type="file"
+            hidden
+            accept=".jpg,.jpeg,.png,.heic,.heif,.webp,image/jpeg,image/png,image/heic,image/heif,image/webp"
+          />
+          <label class="dropzone" id="predictDropzone" for="predictFileInput">
+            <span class="title">点击或拖拽待测图片到这里</span>
+            <span class="sub">图片不会写入训练集，仅用于预测缓冲</span>
+          </label>
+
+          <div class="field-row">
+            <label for="modelSelect">选择模型（最新10个）</label>
+            <select id="modelSelect" required>
+              <option value="">加载中...</option>
+            </select>
+          </div>
+
+          <div class="actions">
+            <button id="refreshModelsBtn" class="btn-ghost" type="button">刷新模型列表</button>
+            <button id="predictBtn" class="btn-primary" type="submit">开始预测</button>
+          </div>
+        </form>
+
+        <div class="meta" id="predictMeta">未选择图片</div>
+        <div class="status" id="predictStatus" data-type="info" role="status" aria-live="polite">请选择模型和图片后再预测</div>
+
+        <div class="result hidden" id="predictResult">
+          <strong>预测完成</strong>
+          <div class="meta" id="predictValue"></div>
+          <img id="predictPreview" alt="预测图片预览" />
+        </div>
+      </section>
+    </section>
+
+    <section class="tab-panel" id="cleanupTab">
+      <section class="single-card">
+        <h2>训练数据管理</h2>
+        <p class="note">该区域需要密码，可删除指定样本或清空整个训练数据文件。</p>
+
+        <form id="cleanupAuthForm" novalidate>
+          <div class="field-row">
+            <label for="cleanupPasswordInput">管理密码</label>
+            <input id="cleanupPasswordInput" type="password" placeholder="请输入管理密码" required />
+          </div>
+          <div class="actions">
+            <button id="cleanupVerifyBtn" class="btn-primary" type="submit">验证并进入</button>
+          </div>
+        </form>
+
+        <div class="status" id="cleanupAuthStatus" data-type="info" role="status" aria-live="polite">尚未验证</div>
+
+        <div class="restricted-box hidden" id="cleanupPanel">
+          <div class="actions">
+            <button id="refreshRecordsBtn" class="btn-ghost" type="button">刷新记录列表</button>
+          </div>
+
+          <div class="field-row">
+            <label for="recordSelect">选择要删除的训练记录</label>
+            <select id="recordSelect">
+              <option value="">暂无记录</option>
+            </select>
+          </div>
+
+          <div class="meta" id="cleanupCountMeta">记录数: 0</div>
+          <pre class="training-content" id="cleanupRecordPreview">(暂无记录)</pre>
+
+          <div class="actions">
+            <button id="deleteRecordBtn" class="btn-primary" type="button">删除选中记录</button>
+            <button id="clearAllBtn" class="btn-danger" type="button">清空全部记录</button>
+          </div>
+
+          <div class="status" id="cleanupStatus" data-type="info" role="status" aria-live="polite">等待操作</div>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <script>
+    const MAX_SIZE = 5 * 1024 * 1024;
+    const ALLOWED_EXT = new Set(["jpg", "jpeg", "png", "heic", "heif", "webp"]);
+    const REFRESH_SECONDS = new Set([10, 30, 50]);
+
+    const navButtons = Array.from(document.querySelectorAll(".nav-btn"));
+    const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
+
+    const fileInput = document.getElementById("fileInput");
+    const dropzone = document.getElementById("dropzone");
+    const phInput = document.getElementById("phInput");
+    const uploadPasswordInput = document.getElementById("uploadPasswordInput");
+    const uploadForm = document.getElementById("uploadForm");
+    const submitBtn = document.getElementById("submitBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const statusEl = document.getElementById("status");
+    const metaEl = document.getElementById("meta");
+    const resultEl = document.getElementById("result");
+    const resultLink = document.getElementById("resultLink");
+    const previewEl = document.getElementById("preview");
+
+    const trainingStatusEl = document.getElementById("trainingStatus");
+    const trainingMetaEl = document.getElementById("trainingMeta");
+    const trainingContentEl = document.getElementById("trainingContent");
+    const manualRefreshBtn = document.getElementById("manualRefreshBtn");
+
+    const authForm = document.getElementById("authForm");
+    const passwordInput = document.getElementById("passwordInput");
+    const verifyBtn = document.getElementById("verifyBtn");
+    const authStatusEl = document.getElementById("authStatus");
+    const restrictedBox = document.getElementById("restrictedBox");
+    const trainBtn = document.getElementById("trainBtn");
+    const trainStatusEl = document.getElementById("trainStatus");
+    const trainMetaEl = document.getElementById("trainMeta");
+    const trainOutputEl = document.getElementById("trainOutput");
+    const advancedToggle = document.getElementById("advancedToggle");
+    const advancedPanel = document.getElementById("advancedPanel");
+    const disableAutoTuneToggle = document.getElementById("disableAutoTuneToggle");
+    const manualParamsPanel = document.getElementById("manualParamsPanel");
+    const cInput = document.getElementById("cInput");
+    const epsilonInput = document.getElementById("epsilonInput");
+    const gammaInput = document.getElementById("gammaInput");
+
+    const predictForm = document.getElementById("predictForm");
+    const predictFileInput = document.getElementById("predictFileInput");
+    const predictDropzone = document.getElementById("predictDropzone");
+    const modelSelect = document.getElementById("modelSelect");
+    const refreshModelsBtn = document.getElementById("refreshModelsBtn");
+    const predictBtn = document.getElementById("predictBtn");
+    const predictMetaEl = document.getElementById("predictMeta");
+    const predictStatusEl = document.getElementById("predictStatus");
+    const predictResultEl = document.getElementById("predictResult");
+    const predictValueEl = document.getElementById("predictValue");
+    const predictPreviewEl = document.getElementById("predictPreview");
+
+    const cleanupAuthForm = document.getElementById("cleanupAuthForm");
+    const cleanupPasswordInput = document.getElementById("cleanupPasswordInput");
+    const cleanupVerifyBtn = document.getElementById("cleanupVerifyBtn");
+    const cleanupAuthStatusEl = document.getElementById("cleanupAuthStatus");
+    const cleanupPanel = document.getElementById("cleanupPanel");
+    const refreshRecordsBtn = document.getElementById("refreshRecordsBtn");
+    const recordSelect = document.getElementById("recordSelect");
+    const cleanupCountMetaEl = document.getElementById("cleanupCountMeta");
+    const cleanupRecordPreviewEl = document.getElementById("cleanupRecordPreview");
+    const deleteRecordBtn = document.getElementById("deleteRecordBtn");
+    const clearAllBtn = document.getElementById("clearAllBtn");
+    const cleanupStatusEl = document.getElementById("cleanupStatus");
+
+    let selectedFile = null;
+    let selectedPredictFile = null;
+    let predictPreviewUrl = "";
+    let trainingBusy = false;
+    let lastTriggeredStamp = "";
+    let verifiedPassword = "";
+    let cleanupVerifiedPassword = "";
+    let trainBusy = false;
+
+    function switchTab(targetId) {
+      navButtons.forEach(function(btn) {
+        btn.classList.toggle("is-active", btn.dataset.tabTarget === targetId);
+      });
+      tabPanels.forEach(function(panel) {
+        panel.classList.toggle("is-active", panel.id === targetId);
+      });
+
+      if (targetId === "trainingTab") {
+        refreshTrainingData("切换到训练数据页");
+      }
+      if (targetId === "predictTab") {
+        loadLatestModels();
+      }
+      if (targetId === "cleanupTab" && cleanupVerifiedPassword) {
+        loadTrainingRecords();
+      }
+    }
+
+    navButtons.forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        switchTab(btn.dataset.tabTarget);
+      });
+    });
+
+    function setStatus(text, type) {
+      statusEl.textContent = text;
+      statusEl.dataset.type = type || "info";
+    }
+
+    function setTrainingStatus(text, type) {
+      trainingStatusEl.textContent = text;
+      trainingStatusEl.dataset.type = type || "info";
+    }
+
+    function setAuthStatus(text, type) {
+      authStatusEl.textContent = text;
+      authStatusEl.dataset.type = type || "info";
+    }
+
+    function setTrainStatus(text, type) {
+      trainStatusEl.textContent = text;
+      trainStatusEl.dataset.type = type || "info";
+    }
+
+    function setPredictStatus(text, type) {
+      predictStatusEl.textContent = text;
+      predictStatusEl.dataset.type = type || "info";
+    }
+
+    function setCleanupAuthStatus(text, type) {
+      cleanupAuthStatusEl.textContent = text;
+      cleanupAuthStatusEl.dataset.type = type || "info";
+    }
+
+    function setCleanupStatus(text, type) {
+      cleanupStatusEl.textContent = text;
+      cleanupStatusEl.dataset.type = type || "info";
+    }
+
+    function extOf(name) {
+      const pieces = name.toLowerCase().split(".");
+      if (pieces.length < 2) {
+        return "";
+      }
+      return pieces[pieces.length - 1];
+    }
+
+    function toMb(size) {
+      return (size / (1024 * 1024)).toFixed(2);
+    }
+
+    function validateFile(file) {
+      if (!file) {
+        return "请先选择图片文件";
+      }
+
+      const ext = extOf(file.name);
+      if (!ALLOWED_EXT.has(ext)) {
+        return "仅支持 JPG、PNG、HEIC、HEIF、WEBP 格式";
+      }
+
+      if (file.size > MAX_SIZE) {
+        return "文件超过 5MB，请压缩后再上传";
+      }
+
+      return "";
+    }
+
+    function validatePh(rawValue) {
+      const text = String(rawValue || "").trim();
+      if (!text) {
+        return "请先输入 pH 值";
+      }
+
+      const ph = Number(text);
+      if (!Number.isFinite(ph)) {
+        return "pH 必须是数字";
+      }
+
+      if (ph < 0 || ph > 14) {
+        return "pH 范围应在 0 到 14 之间";
+      }
+
+      return "";
+    }
+
+    function validateUploadPassword(rawValue) {
+      const password = String(rawValue || "").trim();
+      if (!password) {
+        return "请先输入训练集上传密码";
+      }
+      return "";
+    }
+
+    function showFile(file) {
+      const err = validateFile(file);
+      if (err) {
+        selectedFile = null;
+        metaEl.textContent = "未选择文件";
+        resultEl.classList.add("hidden");
+        setStatus(err, "error");
+        return;
+      }
+
+      selectedFile = file;
+      metaEl.textContent = "已选择: " + file.name + " (" + toMb(file.size) + " MB)";
+      setStatus("文件校验通过，点击开始上传", "info");
+    }
+
+    function showPredictFile(file) {
+      const err = validateFile(file);
+      if (err) {
+        selectedPredictFile = null;
+        predictMetaEl.textContent = "未选择图片";
+        predictResultEl.classList.add("hidden");
+        setPredictStatus(err, "error");
+        return;
+      }
+
+      selectedPredictFile = file;
+      predictMetaEl.textContent = "已选择: " + file.name + " (" + toMb(file.size) + " MB)";
+      setPredictStatus("图片校验通过，选择模型后可预测", "info");
+    }
+
+    ["dragenter", "dragover"].forEach(function(evtName) {
+      dropzone.addEventListener(evtName, function(evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        dropzone.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(function(evtName) {
+      dropzone.addEventListener(evtName, function(evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        dropzone.classList.remove("dragover");
+      });
+    });
+
+    dropzone.addEventListener("drop", function(evt) {
+      const files = evt.dataTransfer && evt.dataTransfer.files;
+      if (!files || !files.length) {
+        return;
+      }
+      fileInput.files = files;
+      showFile(files[0]);
+    });
+
+    fileInput.addEventListener("change", function() {
+      if (!fileInput.files || !fileInput.files.length) {
+        return;
+      }
+      showFile(fileInput.files[0]);
+    });
+
+    ["dragenter", "dragover"].forEach(function(evtName) {
+      predictDropzone.addEventListener(evtName, function(evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        predictDropzone.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(function(evtName) {
+      predictDropzone.addEventListener(evtName, function(evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        predictDropzone.classList.remove("dragover");
+      });
+    });
+
+    predictDropzone.addEventListener("drop", function(evt) {
+      const files = evt.dataTransfer && evt.dataTransfer.files;
+      if (!files || !files.length) {
+        return;
+      }
+      predictFileInput.files = files;
+      showPredictFile(files[0]);
+    });
+
+    predictFileInput.addEventListener("change", function() {
+      if (!predictFileInput.files || !predictFileInput.files.length) {
+        return;
+      }
+      showPredictFile(predictFileInput.files[0]);
+    });
+
+    resetBtn.addEventListener("click", function() {
+      fileInput.value = "";
+      phInput.value = "";
+      uploadPasswordInput.value = "";
+      selectedFile = null;
+      resultEl.classList.add("hidden");
+      metaEl.textContent = "未选择文件";
+      setStatus("请选择图片后上传", "info");
+    });
+
+    uploadForm.addEventListener("submit", async function(evt) {
+      evt.preventDefault();
+
+      const err = validateFile(selectedFile);
+      if (err) {
+        setStatus(err, "error");
+        return;
+      }
+
+      const phErr = validatePh(phInput.value);
+      if (phErr) {
+        setStatus(phErr, "error");
+        return;
+      }
+
+      const passwordErr = validateUploadPassword(uploadPasswordInput.value);
+      if (passwordErr) {
+        setStatus(passwordErr, "error");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      setStatus("正在上传，请稍候...", "info");
+
+      const data = new FormData();
+      data.append("image", selectedFile);
+      data.append("ph", String(phInput.value).trim());
+      data.append("password", String(uploadPasswordInput.value));
+
+      try {
+        const resp = await fetch("/api/upload", {
+          method: "POST",
+          body: data
+        });
+
+        const payload = await resp.json().catch(function() {
+          return {};
+        });
+
+        if (!resp.ok) {
+          throw new Error(payload.error || "上传失败，请稍后重试");
+        }
+
+        const url = payload.url;
+        resultLink.href = url;
+        resultLink.textContent = window.location.origin + url;
+        previewEl.src = url + "?t=" + Date.now();
+        resultEl.classList.remove("hidden");
+
+        const training = payload.training || null;
+        if (training) {
+          const h = Number(training.h);
+          const s = Number(training.s);
+          const v = Number(training.v);
+          const ph = Number(training.ph);
+          const hsvLine = "H=" + h.toFixed(2) + "°, S=" + s.toFixed(2) + "%, V=" + v.toFixed(2) + "%, pH=" + ph.toFixed(2);
+          metaEl.textContent = "已处理: " + selectedFile.name + " | " + hsvLine;
+
+          if (training.inserted) {
+            setStatus("上传完成，特征已写入 training_data.dat", "ok");
+          } else {
+            setStatus("上传完成，检测到重复样本，未重复写入 training_data.dat", "ok");
+          }
+        } else {
+          setStatus("上传完成", "ok");
+        }
+      } catch (error) {
+        setStatus(error.message || "上传失败，请稍后重试", "error");
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    async function loadLatestModels() {
+      refreshModelsBtn.disabled = true;
+      setPredictStatus("正在加载模型列表...", "info");
+
+      try {
+        const resp = await fetch("/api/models/latest?t=" + Date.now(), {
+          cache: "no-store"
+        });
+        const payload = await resp.json().catch(function() {
+          return {};
+        });
+
+        if (!resp.ok) {
+          throw new Error(payload.error || "获取模型列表失败");
+        }
+
+        const models = Array.isArray(payload.models) ? payload.models : [];
+        modelSelect.innerHTML = "";
+
+        if (!models.length) {
+          const option = document.createElement("option");
+          option.value = "";
+          option.textContent = "暂无可用模型";
+          modelSelect.appendChild(option);
+          setPredictStatus("暂无模型，请先在受限区域训练", "error");
+          return;
+        }
+
+        models.forEach(function(item) {
+          const option = document.createElement("option");
+          option.value = String(item.name || "");
+          option.textContent = String(item.name || "");
+          modelSelect.appendChild(option);
+        });
+
+        setPredictStatus("模型列表已更新（按最新到最旧）", "ok");
+      } catch (error) {
+        setPredictStatus(error.message || "获取模型列表失败", "error");
+      } finally {
+        refreshModelsBtn.disabled = false;
+      }
+    }
+
+    refreshModelsBtn.addEventListener("click", function() {
+      loadLatestModels();
+    });
+
+    predictForm.addEventListener("submit", async function(evt) {
+      evt.preventDefault();
+
+      const err = validateFile(selectedPredictFile);
+      if (err) {
+        setPredictStatus(err, "error");
+        return;
+      }
+
+      const modelName = String(modelSelect.value || "").trim();
+      if (!modelName) {
+        setPredictStatus("请先选择模型", "error");
+        return;
+      }
+
+      predictBtn.disabled = true;
+      setPredictStatus("正在预测，请稍候...", "info");
+
+      const formData = new FormData();
+      formData.append("image", selectedPredictFile);
+      formData.append("model", modelName);
+
+      try {
+        const resp = await fetch("/api/predict-ph", {
+          method: "POST",
+          body: formData
+        });
+        const payload = await resp.json().catch(function() {
+          return {};
+        });
+
+        if (!resp.ok) {
+          throw new Error(payload.error || "预测失败");
+        }
+
+        const h = Number(payload.h);
+        const s = Number(payload.s);
+        const v = Number(payload.v);
+        const predictedPh = Number(payload.predictedPh);
+        const pickedCount = Number(payload.pickedCount);
+
+        predictMetaEl.textContent = "模型: " + modelName + " | 采样像素: " + pickedCount;
+        predictValueEl.textContent = "H=" + h.toFixed(2) + "°, S=" + s.toFixed(2) + "%, V=" + v.toFixed(2) + "%, 预测 pH=" + predictedPh.toFixed(4);
+
+        if (predictPreviewUrl) {
+          URL.revokeObjectURL(predictPreviewUrl);
+        }
+        predictPreviewUrl = URL.createObjectURL(selectedPredictFile);
+        predictPreviewEl.src = predictPreviewUrl;
+        predictResultEl.classList.remove("hidden");
+        setPredictStatus("预测完成", "ok");
+      } catch (error) {
+        setPredictStatus(error.message || "预测失败", "error");
+      } finally {
+        predictBtn.disabled = false;
+      }
+    });
+
+    async function refreshTrainingData(reason, isManual) {
+      if (trainingBusy) {
+        return;
+      }
+
+      trainingBusy = true;
+      manualRefreshBtn.disabled = true;
+      setTrainingStatus("正在刷新 training_data.dat ...", "info");
+
+      try {
+        const suffix = isManual ? "&manual=1" : "";
+        const resp = await fetch("/api/training-data?t=" + Date.now() + suffix, {
+          cache: "no-store"
+        });
+        const text = await resp.text();
+        if (!resp.ok) {
+          throw new Error(text || "获取 training_data.dat 失败");
+        }
+
+        trainingContentEl.textContent = text || "(文件为空)";
+        const serverManualStamp = resp.headers.get("X-Manual-Refresh-At") || "";
+        let metaText = "上次刷新: " + new Date().toLocaleString("zh-CN") + " | 触发: " + reason;
+        if (serverManualStamp) {
+          metaText += " | 服务端手动刷新时间戳: " + serverManualStamp;
+        }
+        trainingMetaEl.textContent = metaText;
+        setTrainingStatus("刷新完成", "ok");
+      } catch (error) {
+        setTrainingStatus(error.message || "刷新失败", "error");
+      } finally {
+        trainingBusy = false;
+        manualRefreshBtn.disabled = false;
+      }
+    }
+
+    function maybeTimedRefresh() {
+      const now = new Date();
+      const sec = now.getSeconds();
+      if (!REFRESH_SECONDS.has(sec)) {
+        return;
+      }
+
+      const stamp = [
+        now.getFullYear(),
+        now.getMonth() + 1,
+        now.getDate(),
+        now.getHours(),
+        now.getMinutes(),
+        sec
+      ].join("-");
+
+      if (stamp === lastTriggeredStamp) {
+        return;
+      }
+
+      lastTriggeredStamp = stamp;
+      refreshTrainingData("定时触发 " + sec + "s", false);
+    }
+
+    manualRefreshBtn.addEventListener("click", function() {
+      refreshTrainingData("手动刷新", true);
+    });
+
+    authForm.addEventListener("submit", async function(evt) {
+      evt.preventDefault();
+
+      const password = String(passwordInput.value || "").trim();
+      if (!password) {
+        verifiedPassword = "";
+        setAuthStatus("请输入密码", "error");
+        restrictedBox.classList.add("hidden");
+        return;
+      }
+
+      verifyBtn.disabled = true;
+      setAuthStatus("正在验证密码...", "info");
+
+      try {
+        const resp = await fetch("/api/verify-password", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ password: password })
+        });
+
+        const payload = await resp.json().catch(function() {
+          return {};
+        });
+
+        if (!resp.ok) {
+          throw new Error(payload.error || "密码验证失败");
+        }
+
+        if (payload.ok) {
+          verifiedPassword = password;
+          setAuthStatus("密码正确，已通过服务端验证", "ok");
+          restrictedBox.classList.remove("hidden");
+          if (payload.lastTrainingAt) {
+            trainMetaEl.textContent = "上次训练: " + payload.lastTrainingAt;
+          }
+        } else {
+          verifiedPassword = "";
+          setAuthStatus("密码错误", "error");
+          restrictedBox.classList.add("hidden");
+        }
+      } catch (error) {
+        verifiedPassword = "";
+        setAuthStatus(error.message || "密码验证失败", "error");
+        restrictedBox.classList.add("hidden");
+      } finally {
+        verifyBtn.disabled = false;
+      }
+    });
+
+    passwordInput.addEventListener("input", function() {
+      verifiedPassword = "";
+      restrictedBox.classList.add("hidden");
+      setAuthStatus("尚未验证", "info");
+    });
+
+    advancedToggle.addEventListener("change", function() {
+      advancedPanel.classList.toggle("hidden", !advancedToggle.checked);
+      if (!advancedToggle.checked) {
+        disableAutoTuneToggle.checked = false;
+        manualParamsPanel.classList.add("hidden");
+      }
+    });
+
+    disableAutoTuneToggle.addEventListener("change", function() {
+      manualParamsPanel.classList.toggle("hidden", !disableAutoTuneToggle.checked);
+    });
+
+    trainBtn.addEventListener("click", async function() {
+      if (trainBusy) {
+        return;
+      }
+      if (!verifiedPassword) {
+        setTrainStatus("请先完成密码验证", "error");
+        return;
+      }
+
+      const autoTune = !disableAutoTuneToggle.checked;
+      const payload = {
+        password: verifiedPassword,
+        autoTune: autoTune
+      };
+
+      if (!autoTune) {
+        const c = Number(String(cInput.value || "").trim());
+        const epsilon = Number(String(epsilonInput.value || "").trim());
+        const gamma = String(gammaInput.value || "").trim();
+
+        if (!Number.isFinite(c) || c <= 0) {
+          setTrainStatus("C 必须是大于 0 的数字", "error");
+          return;
+        }
+        if (!Number.isFinite(epsilon) || epsilon < 0) {
+          setTrainStatus("epsilon 必须是大于等于 0 的数字", "error");
+          return;
+        }
+        if (!gamma) {
+          setTrainStatus("gamma 不能为空", "error");
+          return;
+        }
+
+        payload.c = c;
+        payload.epsilon = epsilon;
+        payload.gamma = gamma;
+      }
+
+      trainBusy = true;
+      trainBtn.disabled = true;
+      setTrainStatus("正在训练模型，请稍候...", "info");
+
+      try {
+        const resp = await fetch("/api/train-model", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await resp.json().catch(function() {
+          return {};
+        });
+
+        if (!resp.ok) {
+          throw new Error(result.error || "训练失败");
+        }
+
+        setTrainStatus("训练完成，模型已保存", "ok");
+        trainMetaEl.textContent = "上次训练: " + result.trainedAt + " | 模型: " + result.modelFile;
+
+        if (result.output) {
+          trainOutputEl.textContent = result.output;
+          trainOutputEl.classList.remove("hidden");
+        } else {
+          trainOutputEl.classList.add("hidden");
+          trainOutputEl.textContent = "";
+        }
+
+        loadLatestModels();
+      } catch (error) {
+        setTrainStatus(error.message || "训练失败", "error");
+      } finally {
+        trainBusy = false;
+        trainBtn.disabled = false;
+      }
+    });
+
+    async function loadTrainingRecords() {
+      if (!cleanupVerifiedPassword) {
+        setCleanupStatus("请先验证管理密码", "error");
+        return;
+      }
+
+      refreshRecordsBtn.disabled = true;
+      setCleanupStatus("正在加载训练记录...", "info");
+
+      try {
+        const resp = await fetch("/api/training-records/list", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ password: cleanupVerifiedPassword })
+        });
+
+        const payload = await resp.json().catch(function() {
+          return {};
+        });
+
+        if (!resp.ok) {
+          throw new Error(payload.error || "加载训练记录失败");
+        }
+
+        const rows = Array.isArray(payload.rows) ? payload.rows : [];
+        recordSelect.innerHTML = "";
+
+        if (!rows.length) {
+          const option = document.createElement("option");
+          option.value = "";
+          option.textContent = "暂无记录";
+          recordSelect.appendChild(option);
+          cleanupCountMetaEl.textContent = "记录数: 0";
+          cleanupRecordPreviewEl.textContent = "(暂无记录)";
+          setCleanupStatus("当前没有可删除记录", "info");
+          return;
+        }
+
+        rows.forEach(function(row) {
+          const option = document.createElement("option");
+          option.value = String(row.id);
+          option.textContent = "#" + row.id + " | " + row.line;
+          recordSelect.appendChild(option);
+        });
+
+        const firstRow = rows[0];
+        cleanupRecordPreviewEl.textContent = "#" + firstRow.id + " | " + firstRow.line;
+        cleanupCountMetaEl.textContent = "记录数: " + rows.length;
+        setCleanupStatus("记录列表已更新", "ok");
+      } catch (error) {
+        setCleanupStatus(error.message || "加载训练记录失败", "error");
+      } finally {
+        refreshRecordsBtn.disabled = false;
+      }
+    }
+
+    recordSelect.addEventListener("change", function() {
+      const selectedText = recordSelect.options[recordSelect.selectedIndex]
+        ? recordSelect.options[recordSelect.selectedIndex].textContent
+        : "";
+      cleanupRecordPreviewEl.textContent = selectedText || "(暂无记录)";
+    });
+
+    cleanupAuthForm.addEventListener("submit", async function(evt) {
+      evt.preventDefault();
+
+      const password = String(cleanupPasswordInput.value || "").trim();
+      if (!password) {
+        cleanupVerifiedPassword = "";
+        cleanupPanel.classList.add("hidden");
+        setCleanupAuthStatus("请输入管理密码", "error");
+        return;
+      }
+
+      cleanupVerifyBtn.disabled = true;
+      setCleanupAuthStatus("正在验证密码...", "info");
+
+      try {
+        const resp = await fetch("/api/verify-password", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ password: password })
+        });
+
+        const payload = await resp.json().catch(function() {
+          return {};
+        });
+
+        if (!resp.ok) {
+          throw new Error(payload.error || "密码验证失败");
+        }
+
+        if (!payload.ok) {
+          cleanupVerifiedPassword = "";
+          cleanupPanel.classList.add("hidden");
+          setCleanupAuthStatus("密码错误", "error");
+          return;
+        }
+
+        cleanupVerifiedPassword = password;
+        cleanupPanel.classList.remove("hidden");
+        setCleanupAuthStatus("验证通过", "ok");
+        loadTrainingRecords();
+      } catch (error) {
+        cleanupVerifiedPassword = "";
+        cleanupPanel.classList.add("hidden");
+        setCleanupAuthStatus(error.message || "密码验证失败", "error");
+      } finally {
+        cleanupVerifyBtn.disabled = false;
+      }
+    });
+
+    cleanupPasswordInput.addEventListener("input", function() {
+      cleanupVerifiedPassword = "";
+      cleanupPanel.classList.add("hidden");
+      setCleanupAuthStatus("尚未验证", "info");
+    });
+
+    refreshRecordsBtn.addEventListener("click", function() {
+      loadTrainingRecords();
+    });
+
+    deleteRecordBtn.addEventListener("click", async function() {
+      if (!cleanupVerifiedPassword) {
+        setCleanupStatus("请先验证管理密码", "error");
+        return;
+      }
+
+      const recordId = Number(String(recordSelect.value || "").trim());
+      if (!Number.isInteger(recordId) || recordId <= 0) {
+        setCleanupStatus("请先选择有效记录", "error");
+        return;
+      }
+
+      deleteRecordBtn.disabled = true;
+      setCleanupStatus("正在删除记录...", "info");
+
+      try {
+        const resp = await fetch("/api/training-records/delete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            password: cleanupVerifiedPassword,
+            id: recordId
+          })
+        });
+
+        const payload = await resp.json().catch(function() {
+          return {};
+        });
+
+        if (!resp.ok) {
+          throw new Error(payload.error || "删除失败");
+        }
+
+        setCleanupStatus("删除完成，剩余 " + payload.remaining + " 条", "ok");
+        await loadTrainingRecords();
+        refreshTrainingData("数据管理删除后刷新", false);
+      } catch (error) {
+        setCleanupStatus(error.message || "删除失败", "error");
+      } finally {
+        deleteRecordBtn.disabled = false;
+      }
+    });
+
+    clearAllBtn.addEventListener("click", async function() {
+      if (!cleanupVerifiedPassword) {
+        setCleanupStatus("请先验证管理密码", "error");
+        return;
+      }
+
+      const confirmed = window.confirm("确认清空全部训练数据吗？该操作不可撤销。");
+      if (!confirmed) {
+        return;
+      }
+
+      clearAllBtn.disabled = true;
+      setCleanupStatus("正在清空训练数据...", "info");
+
+      try {
+        const resp = await fetch("/api/training-records/clear", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ password: cleanupVerifiedPassword })
+        });
+
+        const payload = await resp.json().catch(function() {
+          return {};
+        });
+
+        if (!resp.ok) {
+          throw new Error(payload.error || "清空失败");
+        }
+
+        setCleanupStatus("已清空，共删除 " + payload.cleared + " 条", "ok");
+        await loadTrainingRecords();
+        refreshTrainingData("数据管理清空后刷新", false);
+      } catch (error) {
+        setCleanupStatus(error.message || "清空失败", "error");
+      } finally {
+        clearAllBtn.disabled = false;
+      }
+    });
+
+    setInterval(maybeTimedRefresh, 250);
+    refreshTrainingData("页面初始化", false);
+    loadLatestModels();
+  </script>
+</body>
+</html>
