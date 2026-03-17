@@ -38,7 +38,7 @@ HEIF_BRANDS = {
     b"mif1",
     b"msf1",
 }
-TRAINING_FILE_HEADER = "H,S,V,pH"
+TRAINING_FILE_HEADER = "H,S,V,R,G,B,pH"
 TRAINING_DATA_LOCK = Lock()
 TRAINING_RUN_LOCK = Lock()
 
@@ -101,17 +101,45 @@ def parse_text_part(part) -> str:
         return raw.decode("utf-8", errors="replace").strip()
 
 
-def normalize_training_key(h: float, s: float, v: float, ph: float) -> tuple[str, str, str, str]:
-    values = [f"{value:.4f}" for value in (h, s, v, ph)]
-    return values[0], values[1], values[2], values[3]
+def normalize_training_key(
+    h: float,
+    s: float,
+    v: float,
+    r: float,
+    g: float,
+    b: float,
+    ph: float,
+) -> tuple[str, str, str, str, str, str, str]:
+    values = [f"{value:.4f}" for value in (h, s, v, r, g, b, ph)]
+    return values[0], values[1], values[2], values[3], values[4], values[5], values[6]
 
 
-def append_unique_training_data(file_path: Path, h: float, s: float, v: float, ph: float) -> bool:
-    key = normalize_training_key(h, s, v, ph)
-    existing_keys: set[tuple[str, str, str, str]] = set()
+def append_unique_training_data(
+    file_path: Path,
+    h: float,
+    s: float,
+    v: float,
+    r: float,
+    g: float,
+    b: float,
+    ph: float,
+) -> bool:
+    key = normalize_training_key(h, s, v, r, g, b, ph)
+    existing_keys: set[tuple[str, str, str, str, str, str, str]] = set()
 
     if file_path.exists():
-        for line in file_path.read_text(encoding="utf-8").splitlines():
+        raw_lines = file_path.read_text(encoding="utf-8").splitlines()
+        non_empty_lines = [line.strip() for line in raw_lines if line.strip()]
+
+        # 不兼容旧格式：如果文件头不是新格式，直接重置为新表头。
+        if non_empty_lines:
+            first_line = non_empty_lines[0].lower().replace(" ", "")
+            expected = TRAINING_FILE_HEADER.lower().replace(" ", "")
+            if first_line != expected:
+                file_path.write_text(TRAINING_FILE_HEADER + "\n", encoding="utf-8")
+                raw_lines = [TRAINING_FILE_HEADER]
+
+        for line in raw_lines:
             line = line.strip()
             if not line:
                 continue
@@ -119,7 +147,7 @@ def append_unique_training_data(file_path: Path, h: float, s: float, v: float, p
                 continue
 
             parts = [piece.strip() for piece in line.split(",")]
-            if len(parts) != 4:
+            if len(parts) != 7:
                 continue
             try:
                 existing_keys.add(
@@ -128,6 +156,9 @@ def append_unique_training_data(file_path: Path, h: float, s: float, v: float, p
                         float(parts[1]),
                         float(parts[2]),
                         float(parts[3]),
+                        float(parts[4]),
+                        float(parts[5]),
+                        float(parts[6]),
                     )
                 )
             except ValueError:
@@ -145,7 +176,10 @@ def append_unique_training_data(file_path: Path, h: float, s: float, v: float, p
     return True
 
 
-def run_comp_vision(comp_vision_path: Path, image_path: Path) -> tuple[float, float, float, int]:
+def run_comp_vision(
+    comp_vision_path: Path,
+    image_path: Path,
+) -> tuple[float, float, float, float, float, float, int]:
     proc = subprocess.run(
         [sys.executable, str(comp_vision_path), str(image_path), "--json"],
         capture_output=True,
@@ -170,11 +204,14 @@ def run_comp_vision(comp_vision_path: Path, image_path: Path) -> tuple[float, fl
         h = float(payload["h"])
         s = float(payload["s"])
         v = float(payload["v"])
+        r = float(payload["r"])
+        g = float(payload["g"])
+        b = float(payload["b"])
         picked_count = int(payload.get("picked_count", 0))
     except (TypeError, ValueError, KeyError) as exc:
-        raise RuntimeError("comp_vision 缺少有效 HSV 字段") from exc
+        raise RuntimeError("comp_vision 缺少有效 HSV/RGB 字段") from exc
 
-    return h, s, v, picked_count
+    return h, s, v, r, g, b, picked_count
 
 
 def read_timestamp_file(file_path: Path) -> datetime | None:
@@ -203,8 +240,8 @@ def write_timestamp_file(file_path: Path, value: datetime) -> str:
     return text
 
 
-def parse_training_entries(file_path: Path) -> list[tuple[float, float, float, float]]:
-    entries: list[tuple[float, float, float, float]] = []
+def parse_training_entries(file_path: Path) -> list[tuple[float, float, float, float, float, float, float]]:
+    entries: list[tuple[float, float, float, float, float, float, float]] = []
     if not file_path.exists():
         return entries
 
@@ -216,32 +253,49 @@ def parse_training_entries(file_path: Path) -> list[tuple[float, float, float, f
             continue
 
         parts = [piece.strip() for piece in line.split(",")]
-        if len(parts) != 4:
+        if len(parts) != 7:
             continue
         try:
             h = float(parts[0])
             s = float(parts[1])
             v = float(parts[2])
-            ph = float(parts[3])
+            r = float(parts[3])
+            g = float(parts[4])
+            b = float(parts[5])
+            ph = float(parts[6])
         except ValueError:
             continue
-        entries.append((h, s, v, ph))
+        entries.append((h, s, v, r, g, b, ph))
 
     return entries
 
 
-def write_training_entries(file_path: Path, entries: list[tuple[float, float, float, float]]) -> None:
+def write_training_entries(file_path: Path, entries: list[tuple[float, float, float, float, float, float, float]]) -> None:
     lines = [TRAINING_FILE_HEADER]
-    for h, s, v, ph in entries:
-        lines.append(f"{h:.4f},{s:.4f},{v:.4f},{ph:.4f}")
+    for h, s, v, r, g, b, ph in entries:
+        lines.append(f"{h:.4f},{s:.4f},{v:.4f},{r:.4f},{g:.4f},{b:.4f},{ph:.4f}")
     file_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def list_latest_models(model_output_directory: Path, limit: int = 10) -> list[dict[str, str]]:
+def normalize_feature_name(value: str) -> str:
+    feature = value.strip().lower()
+    if feature not in {"hsv", "rgb"}:
+        raise ValueError("feature 只能是 hsv 或 rgb")
+    return feature
+
+
+def list_latest_models(
+    model_output_directory: Path,
+    limit: int = 10,
+    feature: str | None = None,
+) -> list[dict[str, str]]:
     if not model_output_directory.exists():
         return []
 
     model_paths = [path for path in model_output_directory.glob("*.pkl") if path.is_file()]
+    if feature is not None:
+        feature_prefix = f"model-{feature.lower()}-"
+        model_paths = [path for path in model_paths if path.name.lower().startswith(feature_prefix)]
     model_paths.sort(key=lambda path: path.stat().st_mtime, reverse=True)
 
     rows: list[dict[str, str]] = []
@@ -251,6 +305,7 @@ def list_latest_models(model_output_directory: Path, limit: int = 10) -> list[di
             {
                 "name": model_path.name,
                 "modifiedAt": modified_at,
+                "feature": "rgb" if "-rgb-" in model_path.name.lower() else "hsv",
             }
         )
     return rows
@@ -272,9 +327,13 @@ def resolve_model_path(model_output_directory: Path, model_name: str) -> Path:
 def run_use_predict(
     use_script_path: Path,
     model_path: Path,
+    feature: str,
     h: float,
     s: float,
     v: float,
+    r: float,
+    g: float,
+    b: float,
 ) -> float:
     proc = subprocess.run(
         [
@@ -282,12 +341,20 @@ def run_use_predict(
             str(use_script_path),
             "--model",
             str(model_path),
+            "--feature",
+            feature,
             "--h",
             str(h),
             "--s",
             str(s),
             "--v",
             str(v),
+            "--r",
+            str(r),
+            "--g",
+            str(g),
+            "--b",
+            str(b),
             "--json",
         ],
         capture_output=True,
@@ -349,7 +416,7 @@ class UploadHandler(SimpleHTTPRequestHandler):
             self.handle_training_data(parse_qs(parsed.query))
             return
         if parsed.path == "/api/models/latest":
-            self.handle_latest_models()
+            self.handle_latest_models(parse_qs(parsed.query))
             return
         super().do_GET()
 
@@ -418,8 +485,17 @@ class UploadHandler(SimpleHTTPRequestHandler):
             return None
         return password
 
-    def handle_latest_models(self) -> None:
-        models = list_latest_models(self.model_output_directory, limit=10)
+    def handle_latest_models(self, query_params: dict[str, list[str]]) -> None:
+        feature_raw = query_params.get("feature", [""])[0]
+        feature_filter: str | None = None
+        if feature_raw.strip():
+            try:
+                feature_filter = normalize_feature_name(feature_raw)
+            except ValueError as exc:
+                json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                return
+
+        models = list_latest_models(self.model_output_directory, limit=10, feature=feature_filter)
         json_response(
             self,
             HTTPStatus.OK,
@@ -501,6 +577,7 @@ class UploadHandler(SimpleHTTPRequestHandler):
 
         file_part = None
         model_raw = ""
+        feature_raw = ""
         for part in message.iter_parts():
             if part.get_content_disposition() != "form-data":
                 continue
@@ -509,12 +586,23 @@ class UploadHandler(SimpleHTTPRequestHandler):
                 file_part = part
             if field_name == "model":
                 model_raw = parse_text_part(part)
+            if field_name == "feature":
+                feature_raw = parse_text_part(part)
 
         if file_part is None:
             json_response(self, HTTPStatus.BAD_REQUEST, {"error": "未找到 image 文件字段"})
             return
         if not model_raw:
             json_response(self, HTTPStatus.BAD_REQUEST, {"error": "未指定模型"})
+            return
+        if not feature_raw:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "未指定 feature"})
+            return
+
+        try:
+            feature = normalize_feature_name(feature_raw)
+        except ValueError as exc:
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
             return
 
         try:
@@ -524,6 +612,11 @@ class UploadHandler(SimpleHTTPRequestHandler):
             return
         except FileNotFoundError as exc:
             json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+
+        expected_prefix = f"model-{feature}-"
+        if not model_path.name.lower().startswith(expected_prefix):
+            json_response(self, HTTPStatus.BAD_REQUEST, {"error": "所选模型与特征类型不匹配"})
             return
 
         original_name = sanitize_filename(file_part.get_filename() or "")
@@ -572,8 +665,18 @@ class UploadHandler(SimpleHTTPRequestHandler):
         buffer_path.write_bytes(content)
 
         try:
-            h, s, v, picked_count = run_comp_vision(self.comp_vision_path, buffer_path)
-            predicted_ph = run_use_predict(self.use_script_path, model_path, h, s, v)
+            h, s, v, r, g, b, picked_count = run_comp_vision(self.comp_vision_path, buffer_path)
+            predicted_ph = run_use_predict(
+                self.use_script_path,
+                model_path,
+                feature,
+                h,
+                s,
+                v,
+                r,
+                g,
+                b,
+            )
         except Exception as exc:
             json_response(self, HTTPStatus.BAD_REQUEST, {"error": f"预测失败: {exc}"})
             return
@@ -589,9 +692,13 @@ class UploadHandler(SimpleHTTPRequestHandler):
             {
                 "ok": True,
                 "model": model_path.name,
+                "feature": feature,
                 "h": round(h, 4),
                 "s": round(s, 4),
                 "v": round(v, 4),
+                "r": round(r, 4),
+                "g": round(g, 4),
+                "b": round(b, 4),
                 "pickedCount": picked_count,
                 "predictedPh": round(predicted_ph, 4),
             },
@@ -618,8 +725,14 @@ class UploadHandler(SimpleHTTPRequestHandler):
                 "h": round(entry[0], 4),
                 "s": round(entry[1], 4),
                 "v": round(entry[2], 4),
-                "ph": round(entry[3], 4),
-                "line": f"{entry[0]:.4f},{entry[1]:.4f},{entry[2]:.4f},{entry[3]:.4f}",
+                "r": round(entry[3], 4),
+                "g": round(entry[4], 4),
+                "b": round(entry[5], 4),
+                "ph": round(entry[6], 4),
+                "line": (
+                    f"{entry[0]:.4f},{entry[1]:.4f},{entry[2]:.4f},"
+                    f"{entry[3]:.4f},{entry[4]:.4f},{entry[5]:.4f},{entry[6]:.4f}"
+                ),
             }
             for idx, entry in enumerate(entries, start=1)
         ]
@@ -669,8 +782,14 @@ class UploadHandler(SimpleHTTPRequestHandler):
                     "h": round(deleted[0], 4),
                     "s": round(deleted[1], 4),
                     "v": round(deleted[2], 4),
-                    "ph": round(deleted[3], 4),
-                    "line": f"{deleted[0]:.4f},{deleted[1]:.4f},{deleted[2]:.4f},{deleted[3]:.4f}",
+                    "r": round(deleted[3], 4),
+                    "g": round(deleted[4], 4),
+                    "b": round(deleted[5], 4),
+                    "ph": round(deleted[6], 4),
+                    "line": (
+                        f"{deleted[0]:.4f},{deleted[1]:.4f},{deleted[2]:.4f},"
+                        f"{deleted[3]:.4f},{deleted[4]:.4f},{deleted[5]:.4f},{deleted[6]:.4f}"
+                    ),
                 },
                 "remaining": len(entries),
             },
@@ -836,12 +955,9 @@ class UploadHandler(SimpleHTTPRequestHandler):
             json_response(self, HTTPStatus.BAD_REQUEST, {"error": "training_data.dat 不存在"})
             return
 
-        sample_lines = [
-            line
-            for line in self.training_data_path.read_text(encoding="utf-8").splitlines()
-            if line.strip() and line.strip().lower().replace(" ", "") != TRAINING_FILE_HEADER.lower()
-        ]
-        if not sample_lines:
+        with TRAINING_DATA_LOCK:
+            sample_entries = parse_training_entries(self.training_data_path)
+        if not sample_entries:
             json_response(self, HTTPStatus.BAD_REQUEST, {"error": "training_data.dat 中没有可训练样本"})
             return
 
@@ -865,42 +981,58 @@ class UploadHandler(SimpleHTTPRequestHandler):
 
             self.model_output_directory.mkdir(parents=True, exist_ok=True)
             model_stamp = now_utc.strftime("%Y%m%d-%H%M%S")
-            model_path = self.model_output_directory / f"model-{model_stamp}.pkl"
-            if model_path.exists():
-                model_path = self.model_output_directory / f"model-{model_stamp}-{uuid.uuid4().hex[:6]}.pkl"
 
-            command = [
-                sys.executable,
-                str(self.train_script_path),
-                "--data",
-                str(self.training_data_path),
-                "--save",
-                str(model_path),
-            ]
-            if auto_tune:
-                command.append("--auto-tune")
-            else:
-                command.extend(
-                    [
-                        "--c",
-                        str(c_value),
-                        "--epsilon",
-                        str(epsilon_value),
-                        "--gamma",
-                        gamma_value,
-                    ]
-                )
+            feature_to_model_path: dict[str, Path] = {}
+            for feature in ("hsv", "rgb"):
+                candidate = self.model_output_directory / f"model-{feature}-{model_stamp}.pkl"
+                if candidate.exists():
+                    candidate = self.model_output_directory / f"model-{feature}-{model_stamp}-{uuid.uuid4().hex[:6]}.pkl"
+                feature_to_model_path[feature] = candidate
 
-            proc = subprocess.run(command, capture_output=True, text=True, check=False)
-            if proc.returncode != 0:
-                detail = proc.stderr.strip() or proc.stdout.strip() or "训练失败"
-                json_response(self, HTTPStatus.INTERNAL_SERVER_ERROR, {"error": detail})
-                return
+            feature_outputs: dict[str, str] = {}
+            for feature in ("hsv", "rgb"):
+                model_path = feature_to_model_path[feature]
+                command = [
+                    sys.executable,
+                    str(self.train_script_path),
+                    "--data",
+                    str(self.training_data_path),
+                    "--feature",
+                    feature,
+                    "--save",
+                    str(model_path),
+                ]
+                if auto_tune:
+                    command.append("--auto-tune")
+                else:
+                    command.extend(
+                        [
+                            "--c",
+                            str(c_value),
+                            "--epsilon",
+                            str(epsilon_value),
+                            "--gamma",
+                            gamma_value,
+                        ]
+                    )
+
+                proc = subprocess.run(command, capture_output=True, text=True, check=False)
+                if proc.returncode != 0:
+                    detail = proc.stderr.strip() or proc.stdout.strip() or f"{feature} 训练失败"
+                    json_response(
+                        self,
+                        HTTPStatus.INTERNAL_SERVER_ERROR,
+                        {
+                            "error": f"{feature.upper()} 训练失败: {detail}",
+                            "feature": feature,
+                        },
+                    )
+                    return
+
+                stdout = (proc.stdout or "").strip()
+                feature_outputs[feature] = "\n".join(stdout.splitlines()[-20:]) if stdout else ""
 
             trained_at = write_timestamp_file(self.last_training_timestamp_path, now_utc)
-
-        stdout = (proc.stdout or "").strip()
-        stdout_tail = "\n".join(stdout.splitlines()[-20:]) if stdout else ""
 
         json_response(
             self,
@@ -908,10 +1040,19 @@ class UploadHandler(SimpleHTTPRequestHandler):
             {
                 "ok": True,
                 "trainedAt": trained_at,
-                "modelFile": model_path.name,
-                "modelPath": f"{self.model_output_directory.name}/{model_path.name}",
                 "autoTune": auto_tune,
-                "output": stdout_tail,
+                "results": {
+                    "hsv": {
+                        "modelFile": feature_to_model_path["hsv"].name,
+                        "modelPath": f"{self.model_output_directory.name}/{feature_to_model_path['hsv'].name}",
+                        "output": feature_outputs.get("hsv", ""),
+                    },
+                    "rgb": {
+                        "modelFile": feature_to_model_path["rgb"].name,
+                        "modelPath": f"{self.model_output_directory.name}/{feature_to_model_path['rgb'].name}",
+                        "output": feature_outputs.get("rgb", ""),
+                    },
+                },
             },
         )
 
@@ -1044,7 +1185,7 @@ class UploadHandler(SimpleHTTPRequestHandler):
         target.write_bytes(content)
 
         try:
-            h, s, v, picked_count = run_comp_vision(self.comp_vision_path, target)
+            h, s, v, r, g, b, picked_count = run_comp_vision(self.comp_vision_path, target)
         except Exception as exc:
             try:
                 target.unlink(missing_ok=True)
@@ -1059,6 +1200,9 @@ class UploadHandler(SimpleHTTPRequestHandler):
                 h=h,
                 s=s,
                 v=v,
+                r=r,
+                g=g,
+                b=b,
                 ph=ph_value,
             )
 
@@ -1076,6 +1220,9 @@ class UploadHandler(SimpleHTTPRequestHandler):
                     "h": round(h, 4),
                     "s": round(s, 4),
                     "v": round(v, 4),
+                    "r": round(r, 4),
+                    "g": round(g, 4),
+                    "b": round(b, 4),
                     "ph": round(ph_value, 4),
                     "pickedCount": picked_count,
                     "dataFile": self.training_data_path.name,

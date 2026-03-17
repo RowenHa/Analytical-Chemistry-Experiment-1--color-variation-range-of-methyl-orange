@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import csv
 import pickle
-import re
 from pathlib import Path
 from typing import Literal, cast
 
@@ -15,73 +14,59 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 
 
-LEGACY_LINE_PATTERN = re.compile(
-	r"H=(?P<H>[\d.]+)°\s*,\s*S=(?P<S>[\d.]+)%\s*,\s*V=(?P<V>[\d.]+)%\s*,\s*pH=(?P<pH>[\d.]+)"
-)
+EXPECTED_HEADER = "h,s,v,r,g,b,ph"
 
 
-def parse_data(file_path: str | Path) -> tuple[np.ndarray, np.ndarray]:
-	"""从 CSV 或旧文本格式解析 HSV 和 pH 数据。"""
-	rows: list[tuple[float, float, float, float]] = []
-	raw_lines = [line.strip() for line in Path(file_path).read_text(encoding="utf-8").splitlines() if line.strip()]
+def parse_data(
+	file_path: str | Path,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+	"""严格解析 H,S,V,R,G,B,pH 七列数据。"""
+	path = Path(file_path)
+	raw_lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+	if not raw_lines:
+		raise ValueError("数据文件为空")
 
-	if raw_lines:
-		header = raw_lines[0].lower().replace(" ", "")
-		if header == "h,s,v,ph":
-			reader = csv.reader(raw_lines[1:])
-			for row in reader:
-				if len(row) < 4:
-					continue
-				try:
-					h = float(row[0])
-					s = float(row[1])
-					v = float(row[2])
-					ph = float(row[3])
-				except ValueError:
-					continue
-				rows.append((h, s, v, ph))
-		else:
-			csv_like = True
-			for line in raw_lines:
-				parts = [piece.strip() for piece in line.split(",")]
-				if len(parts) < 4:
-					csv_like = False
-					break
-				try:
-					h = float(parts[0])
-					s = float(parts[1])
-					v = float(parts[2])
-					ph = float(parts[3])
-				except ValueError:
-					csv_like = False
-					break
-				rows.append((h, s, v, ph))
+	header = raw_lines[0].lower().replace(" ", "")
+	if header != EXPECTED_HEADER:
+		raise ValueError("数据文件头必须为 H,S,V,R,G,B,pH")
 
-			if not csv_like:
-				rows = []
-				for line in raw_lines:
-					m = LEGACY_LINE_PATTERN.search(line)
-					if m is None:
-						continue
-					h = float(m.group("H"))
-					s = float(m.group("S"))
-					v = float(m.group("V"))
-					ph = float(m.group("pH"))
-					rows.append((h, s, v, ph))
+	rows: list[tuple[float, float, float, float, float, float, float]] = []
+	for line_idx, row in enumerate(csv.reader(raw_lines[1:]), start=2):
+		if len(row) != 7:
+			raise ValueError(f"第 {line_idx} 行列数错误，期望 7 列")
+		try:
+			h = float(row[0])
+			s = float(row[1])
+			v = float(row[2])
+			r = float(row[3])
+			g = float(row[4])
+			b = float(row[5])
+			ph = float(row[6])
+		except ValueError as exc:
+			raise ValueError(f"第 {line_idx} 行包含非数字字段") from exc
+		rows.append((h, s, v, r, g, b, ph))
 
 	if not rows:
 		raise ValueError("未在数据文件中解析到有效样本")
 
 	arr = np.array(rows, dtype=np.float64)
-	h_deg = arr[:, 0]
-	s = arr[:, 1]
-	v = arr[:, 2]
-	y = arr[:, 3]
+	return arr[:, 0], arr[:, 1], arr[:, 2], arr[:, 3], arr[:, 4], arr[:, 5], arr[:, 6]
 
-	# 色相是环形变量，用 sin/cos 编码避免 0° 与 360° 的断点问题
-	h_rad = np.deg2rad(h_deg)
-	x = np.column_stack([np.sin(h_rad), np.cos(h_rad), s, v])
-	return x, y
+
+def build_features(
+	feature: Literal["hsv", "rgb"],
+	h_deg: np.ndarray,
+	s: np.ndarray,
+	v: np.ndarray,
+	r: np.ndarray,
+	g: np.ndarray,
+	b: np.ndarray,
+) -> np.ndarray:
+	if feature == "hsv":
+		h_rad = np.deg2rad(h_deg)
+		# 色相是环形变量，用 sin/cos 编码避免 0° 与 360° 的断点问题
+		return np.column_stack([np.sin(h_rad), np.cos(h_rad), s, v])
+	return np.column_stack([r, g, b])
 
 
 def build_model(
@@ -130,8 +115,15 @@ def auto_tune_model(x: np.ndarray, y: np.ndarray) -> tuple[Pipeline, dict[str, o
 
 
 def main() -> None:
-	parser = argparse.ArgumentParser(description="使用 HSV 数据训练 SVR 回归模型预测 pH")
+	parser = argparse.ArgumentParser(description="使用 HSV/RGB 数据训练 SVR 回归模型预测 pH")
 	parser.add_argument("--data", type=str, default="training_data.dat", help="数据文件路径")
+	parser.add_argument(
+		"--feature",
+		type=str,
+		choices=["hsv", "rgb"],
+		default="hsv",
+		help="训练特征类型：hsv 或 rgb",
+	)
 	parser.add_argument("--c", type=float, default=10.0, help="SVR 的 C 参数")
 	parser.add_argument("--epsilon", type=float, default=0.05, help="SVR 的 epsilon 参数")
 	parser.add_argument("--gamma", type=str, default="scale", help="SVR 的 gamma 参数")
@@ -139,7 +131,12 @@ def main() -> None:
 	parser.add_argument("--save", type=str, default="", help="可选：保存模型路径（.pkl）")
 	args = parser.parse_args()
 
-	x, y = parse_data(args.data)
+	feature = cast(Literal["hsv", "rgb"], args.feature)
+	h, s, v, r, g, b, y = parse_data(args.data)
+	x = build_features(feature, h, s, v, r, g, b)
+	print(f"特征模式: {feature.upper()}")
+	print(f"样本数: {len(y)}")
+
 	if args.auto_tune:
 		model, best_params, best_mae = auto_tune_model(x, y)
 		print("自动调参完成（目标: 最小 MAE）")
@@ -157,7 +154,6 @@ def main() -> None:
 	rmse = np.sqrt(mean_squared_error(y, y_cv_pred))
 	r2 = r2_score(y, y_cv_pred)
 
-	print(f"样本数: {len(y)}")
 	print("留一法交叉验证结果:")
 	print(f"MAE : {mae:.4f}")
 	print(f"RMSE: {rmse:.4f}")

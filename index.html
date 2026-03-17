@@ -607,7 +607,7 @@
     <section class="tab-panel" id="predictTab">
       <section class="single-card">
         <h2>pH 预测</h2>
-        <p class="note">上传待测图片到缓冲区，先由 comp_vision 提取 HSV，再调用 use.py 预测 pH。</p>
+        <p class="note">上传待测图片到缓冲区，先由 comp_vision 提取 HSV 和 RGB，再按所选特征调用 use.py 预测 pH。</p>
 
         <form id="predictForm" novalidate>
           <input
@@ -621,6 +621,14 @@
             <span class="title">点击或拖拽待测图片到这里</span>
             <span class="sub">图片不会写入训练集，仅用于预测缓冲</span>
           </label>
+
+          <div class="field-row">
+            <label for="predictFeatureSelect">预测特征</label>
+            <select id="predictFeatureSelect">
+              <option value="hsv" selected>HSV</option>
+              <option value="rgb">RGB</option>
+            </select>
+          </div>
 
           <div class="field-row">
             <label for="modelSelect">选择模型（最新10个）</label>
@@ -735,6 +743,7 @@
     const predictForm = document.getElementById("predictForm");
     const predictFileInput = document.getElementById("predictFileInput");
     const predictDropzone = document.getElementById("predictDropzone");
+    const predictFeatureSelect = document.getElementById("predictFeatureSelect");
     const modelSelect = document.getElementById("modelSelect");
     const refreshModelsBtn = document.getElementById("refreshModelsBtn");
     const predictBtn = document.getElementById("predictBtn");
@@ -1039,9 +1048,14 @@
           const h = Number(training.h);
           const s = Number(training.s);
           const v = Number(training.v);
+          const r = Number(training.r);
+          const g = Number(training.g);
+          const b = Number(training.b);
           const ph = Number(training.ph);
-          const hsvLine = "H=" + h.toFixed(2) + "°, S=" + s.toFixed(2) + "%, V=" + v.toFixed(2) + "%, pH=" + ph.toFixed(2);
-          metaEl.textContent = "已处理: " + selectedFile.name + " | " + hsvLine;
+          const colorLine = "H=" + h.toFixed(2) + "°, S=" + s.toFixed(2) + "%, V=" + v.toFixed(2)
+            + "%, R=" + r.toFixed(2) + ", G=" + g.toFixed(2) + ", B=" + b.toFixed(2)
+            + ", pH=" + ph.toFixed(2);
+          metaEl.textContent = "已处理: " + selectedFile.name + " | " + colorLine;
 
           if (training.inserted) {
             setStatus("上传完成，特征已写入 training_data.dat", "ok");
@@ -1059,11 +1073,12 @@
     });
 
     async function loadLatestModels() {
+      const feature = String(predictFeatureSelect.value || "hsv").toLowerCase();
       refreshModelsBtn.disabled = true;
       setPredictStatus("正在加载模型列表...", "info");
 
       try {
-        const resp = await fetch("/api/models/latest?t=" + Date.now(), {
+        const resp = await fetch("/api/models/latest?feature=" + encodeURIComponent(feature) + "&t=" + Date.now(), {
           cache: "no-store"
         });
         const payload = await resp.json().catch(function() {
@@ -1082,18 +1097,19 @@
           option.value = "";
           option.textContent = "暂无可用模型";
           modelSelect.appendChild(option);
-          setPredictStatus("暂无模型，请先在受限区域训练", "error");
+          setPredictStatus(feature.toUpperCase() + " 模型为空，请先训练", "error");
           return;
         }
 
         models.forEach(function(item) {
           const option = document.createElement("option");
           option.value = String(item.name || "");
-          option.textContent = String(item.name || "");
+          const modifiedAt = String(item.modifiedAt || "");
+          option.textContent = String(item.name || "") + (modifiedAt ? " | " + modifiedAt : "");
           modelSelect.appendChild(option);
         });
 
-        setPredictStatus("模型列表已更新（按最新到最旧）", "ok");
+        setPredictStatus(feature.toUpperCase() + " 模型列表已更新（按最新到最旧）", "ok");
       } catch (error) {
         setPredictStatus(error.message || "获取模型列表失败", "error");
       } finally {
@@ -1102,6 +1118,11 @@
     }
 
     refreshModelsBtn.addEventListener("click", function() {
+      loadLatestModels();
+    });
+
+    predictFeatureSelect.addEventListener("change", function() {
+      predictResultEl.classList.add("hidden");
       loadLatestModels();
     });
 
@@ -1120,12 +1141,15 @@
         return;
       }
 
+      const feature = String(predictFeatureSelect.value || "hsv").toLowerCase();
+
       predictBtn.disabled = true;
       setPredictStatus("正在预测，请稍候...", "info");
 
       const formData = new FormData();
       formData.append("image", selectedPredictFile);
       formData.append("model", modelName);
+      formData.append("feature", feature);
 
       try {
         const resp = await fetch("/api/predict-ph", {
@@ -1143,11 +1167,16 @@
         const h = Number(payload.h);
         const s = Number(payload.s);
         const v = Number(payload.v);
+        const r = Number(payload.r);
+        const g = Number(payload.g);
+        const b = Number(payload.b);
         const predictedPh = Number(payload.predictedPh);
         const pickedCount = Number(payload.pickedCount);
 
-        predictMetaEl.textContent = "模型: " + modelName + " | 采样像素: " + pickedCount;
-        predictValueEl.textContent = "H=" + h.toFixed(2) + "°, S=" + s.toFixed(2) + "%, V=" + v.toFixed(2) + "%, 预测 pH=" + predictedPh.toFixed(4);
+        predictMetaEl.textContent = "模型: " + modelName + " | 特征: " + feature.toUpperCase() + " | 采样像素: " + pickedCount;
+        predictValueEl.textContent = "H=" + h.toFixed(2) + "°, S=" + s.toFixed(2) + "%, V=" + v.toFixed(2)
+          + "%, R=" + r.toFixed(2) + ", G=" + g.toFixed(2) + ", B=" + b.toFixed(2)
+          + ", 预测(" + feature.toUpperCase() + ") pH=" + predictedPh.toFixed(4);
 
         if (predictPreviewUrl) {
           URL.revokeObjectURL(predictPreviewUrl);
@@ -1355,11 +1384,24 @@
           throw new Error(result.error || "训练失败");
         }
 
-        setTrainStatus("训练完成，模型已保存", "ok");
-        trainMetaEl.textContent = "上次训练: " + result.trainedAt + " | 模型: " + result.modelFile;
+        const hsvResult = result.results && result.results.hsv ? result.results.hsv : null;
+        const rgbResult = result.results && result.results.rgb ? result.results.rgb : null;
 
-        if (result.output) {
-          trainOutputEl.textContent = result.output;
+        setTrainStatus("HSV 与 RGB 模型训练完成", "ok");
+        trainMetaEl.textContent = "上次训练: " + result.trainedAt
+          + " | HSV模型: " + (hsvResult ? hsvResult.modelFile : "-")
+          + " | RGB模型: " + (rgbResult ? rgbResult.modelFile : "-");
+
+        const blocks = [];
+        if (hsvResult && hsvResult.output) {
+          blocks.push("[HSV]\n" + String(hsvResult.output));
+        }
+        if (rgbResult && rgbResult.output) {
+          blocks.push("[RGB]\n" + String(rgbResult.output));
+        }
+
+        if (blocks.length) {
+          trainOutputEl.textContent = blocks.join("\n\n");
           trainOutputEl.classList.remove("hidden");
         } else {
           trainOutputEl.classList.add("hidden");
